@@ -33,9 +33,182 @@ type WorkflowStep = {
   description: string
 }
 
-type PanelId = 'hero' | 'skills' | 'mcp' | 'paper2hfss' | 'docs'
+type PanelId = 'hero' | 'skills' | 'mcp' | 'demos' | 'paper2hfss' | 'docs'
 
-const panelIds: PanelId[] = ['hero', 'skills', 'mcp', 'paper2hfss', 'docs']
+const panelIds: PanelId[] = ['hero', 'skills', 'mcp', 'demos', 'paper2hfss', 'docs']
+
+type ArrayParameters = {
+  nx: number
+  ny: number
+  dx: number
+  dy: number
+  theta: number
+  phi: number
+}
+
+const defaultArrayParameters: ArrayParameters = {
+  nx: 8,
+  ny: 8,
+  dx: 0.5,
+  dy: 0.5,
+  theta: 30,
+  phi: 45,
+}
+
+function arrayFactor(size: number, phase: number) {
+  if (Math.abs(phase) < 1e-6) return 1
+  return Math.sin(size * phase / 2) / (size * Math.sin(phase / 2))
+}
+
+function ArrayPatternDemo() {
+  const [parameters, setParameters] = useState<ArrayParameters>(defaultArrayParameters)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    const draw = () => {
+      const bounds = canvas.getBoundingClientRect()
+      const ratio = Math.min(window.devicePixelRatio || 1, 2)
+      canvas.width = Math.max(1, Math.floor(bounds.width * ratio))
+      canvas.height = Math.max(1, Math.floor(bounds.height * ratio))
+      context.setTransform(ratio, 0, 0, ratio, 0, 0)
+
+      const width = bounds.width
+      const height = bounds.height
+      const centerX = width * 0.5
+      const centerY = height * 0.53
+      const radius = Math.min(width, height) * 0.39
+      const theta0 = parameters.theta * Math.PI / 180
+      const phi0 = parameters.phi * Math.PI / 180
+
+      context.clearRect(0, 0, width, height)
+      context.fillStyle = '#06131f'
+      context.fillRect(0, 0, width, height)
+
+      context.strokeStyle = 'rgba(101, 231, 209, .12)'
+      context.lineWidth = 1
+      ;[0.25, 0.5, 0.75, 1].forEach((scale) => {
+        context.beginPath()
+        context.arc(centerX, centerY, radius * scale, 0, Math.PI * 2)
+        context.stroke()
+      })
+      for (let degree = 0; degree < 360; degree += 30) {
+        const angle = degree * Math.PI / 180
+        context.beginPath()
+        context.moveTo(centerX, centerY)
+        context.lineTo(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius)
+        context.stroke()
+      }
+
+      const image = context.createImageData(Math.ceil(radius * 2), Math.ceil(radius * 2))
+      const size = Math.ceil(radius * 2)
+      for (let y = 0; y < size; y += 1) {
+        for (let x = 0; x < size; x += 1) {
+          const u = (x - radius) / radius
+          const v = (y - radius) / radius
+          const distance = Math.hypot(u, v)
+          if (distance > 1) continue
+
+          const theta = distance * Math.PI / 2
+          const phi = Math.atan2(v, u)
+          const psiX = 2 * Math.PI * parameters.dx * (
+            Math.sin(theta) * Math.cos(phi) - Math.sin(theta0) * Math.cos(phi0)
+          )
+          const psiY = 2 * Math.PI * parameters.dy * (
+            Math.sin(theta) * Math.sin(phi) - Math.sin(theta0) * Math.sin(phi0)
+          )
+          const magnitude = Math.abs(arrayFactor(parameters.nx, psiX) * arrayFactor(parameters.ny, psiY))
+          const normalized = Math.pow(Math.min(1, magnitude), 0.42)
+          const index = (y * size + x) * 4
+          image.data[index] = Math.round(15 + 65 * normalized)
+          image.data[index + 1] = Math.round(34 + 190 * normalized)
+          image.data[index + 2] = Math.round(50 + 175 * normalized)
+          image.data[index + 3] = Math.round(235 * normalized)
+        }
+      }
+      context.putImageData(image, Math.round(centerX - radius), Math.round(centerY - radius))
+
+      context.strokeStyle = 'rgba(101, 231, 209, .72)'
+      context.lineWidth = 1.4
+      context.beginPath()
+      context.arc(centerX, centerY, radius, 0, Math.PI * 2)
+      context.stroke()
+
+      const mainBeamRadius = radius * (theta0 / (Math.PI / 2))
+      const beamX = centerX + Math.cos(phi0) * mainBeamRadius
+      const beamY = centerY + Math.sin(phi0) * mainBeamRadius
+      context.fillStyle = '#e4c79a'
+      context.beginPath()
+      context.arc(beamX, beamY, 4, 0, Math.PI * 2)
+      context.fill()
+      context.strokeStyle = 'rgba(228, 199, 154, .7)'
+      context.setLineDash([4, 5])
+      context.beginPath()
+      context.moveTo(centerX, centerY)
+      context.lineTo(beamX, beamY)
+      context.stroke()
+      context.setLineDash([])
+
+      context.fillStyle = 'rgba(185, 204, 204, .76)'
+      context.font = "10px 'DM Mono', monospace"
+      context.fillText('BROADSIDE', centerX - 26, centerY - radius - 16)
+      context.fillText('0°', centerX - 8, centerY + 16)
+      context.fillStyle = '#65e7d1'
+      context.fillText('ARRAY FACTOR · UPPER HEMISPHERE', 18, height - 20)
+    }
+
+    draw()
+    const observer = new ResizeObserver(draw)
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [parameters])
+
+  const controls: Array<{ key: keyof ArrayParameters; label: string; unit: string; min: number; max: number; step: number }> = [
+    { key: 'nx', label: 'Elements / X', unit: '', min: 1, max: 20, step: 1 },
+    { key: 'ny', label: 'Elements / Y', unit: '', min: 1, max: 20, step: 1 },
+    { key: 'dx', label: 'Spacing / X', unit: ' λ', min: 0.1, max: 2, step: 0.1 },
+    { key: 'dy', label: 'Spacing / Y', unit: ' λ', min: 0.1, max: 2, step: 0.1 },
+    { key: 'theta', label: 'Elevation', unit: '°', min: 0, max: 90, step: 1 },
+    { key: 'phi', label: 'Azimuth', unit: '°', min: 0, max: 360, step: 1 },
+  ]
+
+  return (
+    <div className="array-demo-shell">
+      <div className="demo-controls" aria-label="Planar array parameters">
+        <div className="demo-control-header">
+          <span className="status-pill">LIVE DEMO</span>
+          <button type="button" onClick={() => setParameters(defaultArrayParameters)}>Reset</button>
+        </div>
+        {controls.map((control) => (
+          <label className="range-control" key={control.key}>
+            <span>{control.label}<strong>{parameters[control.key]}{control.unit}</strong></span>
+            <input
+              type="range"
+              min={control.min}
+              max={control.max}
+              step={control.step}
+              value={parameters[control.key]}
+              onChange={(event) => setParameters((current) => ({ ...current, [control.key]: Number(event.target.value) }))}
+            />
+          </label>
+        ))}
+        <p className="demo-hint">调整阵元数量、间距与扫描方向，实时观察归一化阵因子。此演示用于直观理解，不替代全波仿真。</p>
+      </div>
+      <div className="array-canvas-wrap">
+        <canvas ref={canvasRef} aria-label="Interactive planar array factor visualization" />
+        <div className="demo-readout">
+          <span>NX × NY</span><strong>{parameters.nx} × {parameters.ny}</strong>
+          <span>SCAN</span><strong>θ {parameters.theta}° / φ {parameters.phi}°</strong>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const articleFiles = import.meta.glob('../content/articles/*.md', {
   eager: true,
@@ -78,7 +251,7 @@ const skills: Skill[] = [
     description: 'A compact workflow switcher for separate Codex profiles and local development contexts.',
     level: 'Featured',
     tags: ['Codex', 'Workflow'],
-    href: 'https://github.com/ZYHIR18/codex-profile-switch',
+    href: 'https://github.com/Lavaxzyh/codex-profile-switch',
   },
   {
     name: 'HFSS / PyAEDT',
@@ -232,6 +405,7 @@ export default function App() {
     hero: null,
     skills: null,
     mcp: null,
+    demos: null,
     paper2hfss: null,
     docs: null,
   })
@@ -324,12 +498,12 @@ export default function App() {
               onClick={() => scrollToPanel(id)}
               aria-label={`Go to ${id}`}
             >
-              {id === 'paper2hfss' ? 'Paper2HFSS' : id}
+              {id === 'paper2hfss' ? 'Paper2HFSS' : id === 'demos' ? 'Visual Lab' : id}
             </button>
           ))}
         </nav>
 
-        <a className="nav-github" href="https://github.com/ZYHIR18/paper2hfss" target="_blank" rel="noreferrer">
+        <a className="nav-github" href="https://github.com/Lavaxzyh/paper2hfss" target="_blank" rel="noreferrer">
           GitHub →
         </a>
       </header>
@@ -388,7 +562,7 @@ export default function App() {
                   Engineering notes for people who want to understand <strong>why</strong> a simulation can be
                   trusted.
                 </p>
-                <span>01 · 04</span>
+                <span>01 · 05</span>
               </section>
             </div>
           </section>
@@ -488,6 +662,35 @@ export default function App() {
           </section>
 
           <section
+            id="demos"
+            ref={(node) => {
+              panelRefs.current.demos = node
+            }}
+            className="panel demo-panel"
+          >
+            <div className="panel-inner demo-inner">
+              <div className="section-heading demo-heading">
+                <div>
+                  <p className="eyebrow">03 / VISUAL INTERACTION LAB</p>
+                  <h2>
+                    See the field.<br />
+                    <em>Shape the beam.</em>
+                  </h2>
+                </div>
+                <div className="demo-directory">
+                  <span>DEMO INDEX</span>
+                  <button type="button" className="active" aria-current="page">01 · Planar Array Factor</button>
+                  <span className="demo-coming">MORE MODULES · SOON</span>
+                </div>
+              </div>
+              <p className="demo-intro">
+                A small browser-side experiment for connecting array parameters with a visible radiation-pattern response.
+              </p>
+              <ArrayPatternDemo />
+            </div>
+          </section>
+
+          <section
             id="paper2hfss"
             ref={(node) => {
               panelRefs.current.paper2hfss = node
@@ -497,7 +700,7 @@ export default function App() {
             <div className="panel-inner">
               <div className="product-header">
                 <div>
-                  <p className="eyebrow">03 / RESEARCH PREVIEW</p>
+                  <p className="eyebrow">04 / RESEARCH PREVIEW</p>
                   <h2>Paper2HFSS</h2>
                   <p className="product-tagline">
                     Not PDF to HFSS.
@@ -540,7 +743,7 @@ export default function App() {
             <div className="panel-inner docs-inner">
               <div className="section-heading">
                 <div>
-                  <p className="eyebrow">04 / TECHNICAL NOTES</p>
+                  <p className="eyebrow">05 / TECHNICAL NOTES</p>
                   <h2>
                     Make the process<br />
                     <em>shareable.</em>
@@ -634,7 +837,7 @@ export default function App() {
                   <p>© 2026 Lavax · Technical notes and project materials for research and education.</p>
                 </div>
                 <div className="footer-links">
-                  <a href="https://github.com/ZYHIR18/paper2hfss" target="_blank" rel="noreferrer">
+                  <a href="https://github.com/Lavaxzyh/paper2hfss" target="_blank" rel="noreferrer">
                     GitHub →
                   </a>
                   <a href="mailto:hello@paper2hfss.dev">Email →</a>
