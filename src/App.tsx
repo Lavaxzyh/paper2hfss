@@ -42,6 +42,7 @@ function parseArticle(raw: string, path: string): Article {
 const articles = Object.entries(articleFiles).map(([path, raw]) => parseArticle(raw, path)).sort((a, b) => b.date.localeCompare(a.date))
 
 const skills = [
+  ['Codex Profile Switch', '在不同 Codex 配置之间进行便携、可控的工作流切换，适合个人开发环境管理。', 'Featured', ['Codex', 'Workflow']],
   ['HFSS / PyAEDT', '用可复现脚本把建模、端口和求解设置串成工程流程。', 'Core', ['HFSS', 'PyAEDT']],
   ['Antenna Design', '从辐射机理、馈电到指标权衡，建立可验证的天线设计直觉。', 'Research', ['Antenna', 'EM']],
   ['Microwave Engineering', '传输线、滤波器、S 参数与高频系统的结构化知识地图。', 'Foundation', ['RF', 'Microwave']],
@@ -140,7 +141,7 @@ export default function App() {
 
         <section id="skills" className="content-section">
           <div className="section-heading"><div><p className="eyebrow">01 / SKILLS GALLERY</p><h2>Build the right<br /><em>mental model.</em></h2></div><p className="section-note">A working map of the skills behind reproducible antenna and microwave research.</p></div>
-          <div className="card-grid skills-grid">{skills.map(([name, desc, level, tags]) => <article className="skill-card" key={name}><div className="card-top"><span className="index-label">SKILL</span><span className="status-pill">{level}</span></div><h3>{name}</h3><p>{desc}</p><div className="tag-row">{tags.map((tag) => <span key={tag}>#{tag}</span>)}</div><a href="#docs" onClick={() => scrollTo('docs')}>Explore notes <span>↗</span></a></article>)}</div>
+          <div className="card-grid skills-grid">{skills.map(([name, desc, level, tags], index) => { const featuredSkill = index === 0; return <article className="skill-card" key={name}><div className="card-top"><span className="index-label">SKILL</span><span className="status-pill">{level}</span></div><h3>{name}</h3><p>{desc}</p><div className="tag-row">{tags.map((tag) => <span key={tag}>#{tag}</span>)}</div><a href={featuredSkill ? 'https://github.com/ZYHIR18/codex-profile-switch' : '#docs'} onClick={featuredSkill ? undefined : () => scrollTo('docs')} target={featuredSkill ? '_blank' : undefined} rel={featuredSkill ? 'noreferrer' : undefined}>{featuredSkill ? 'View project' : 'Explore notes'} <span>↗</span></a></article> })}</div>
         </section>
 
         <section id="mcp" className="content-section tinted-section">

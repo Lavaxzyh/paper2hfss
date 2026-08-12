@@ -21,7 +21,7 @@ a { text-decoration: none; }
 .hero { min-height: 670px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(390px, .9fr); align-items: center; gap: 70px; padding-top: 80px; padding-bottom: 90px; }
 .eyebrow { margin: 0 0 22px; color: var(--accent); font: 11px 'DM Mono', monospace; letter-spacing: .16em; }
 h1, h2, h3, p { margin-top: 0; }
-h1 { font-size: clamp(52px, 7vw, 92px); letter-spacing: -.07em; line-height: .96; margin-bottom: 28px; max-width: 800px; }
+h1 { font-size: clamp(52px, 7vw, 92px); letter-spacing: -.07em; line-height: 1.06; margin-bottom: 28px; max-width: 800px; }
 h1 em, h2 em { color: var(--accent); font-style: normal; }
 .hero-lede { max-width: 580px; color: var(--soft); font-size: 17px; line-height: 1.85; }
 .hero-actions { display: flex; gap: 20px; align-items: center; margin-top: 40px; }
