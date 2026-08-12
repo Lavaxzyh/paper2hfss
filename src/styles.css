@@ -157,41 +157,18 @@ p {
 
 .panel-track {
   height: 100%;
-  display: flex;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-
-.panel-track.is-programmatic-scrolling {
-  scroll-snap-type: none;
-}
-
-.panel.is-transition-hidden {
-  visibility: hidden;
-}
-
-.panel.is-direct-target {
-  position: relative;
-  z-index: 1;
-  will-change: transform;
-}
-
-.panel-track::-webkit-scrollbar {
-  display: none;
+  overflow: hidden;
 }
 
 .panel {
-  flex: 0 0 100%;
-  min-width: 100%;
+  display: none;
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
+}
+
+.panel.panel-active {
+  display: block;
 }
 
 .panel-inner {

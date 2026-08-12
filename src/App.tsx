@@ -496,9 +496,6 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
   const [activePanel, setActivePanel] = useState<PanelId>('hero')
-  const panelTrackRef = useRef<HTMLDivElement | null>(null)
-  const scrollAnimationRef = useRef<number | null>(null)
-  const transitionCleanupRef = useRef<(() => void) | null>(null)
   const panelRefs = useRef<Record<PanelId, HTMLElement | null>>({
     hero: null,
     skills: null,
@@ -524,41 +521,9 @@ export default function App() {
     const docsPanel = panelRefs.current.docs
     if (!activeArticle || !docsPanel) return
 
+    setActivePanel('docs')
     docsPanel.scrollTo({ top: 0, behavior: 'smooth' })
-    panelRefs.current.docs?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' })
   }, [activeArticle])
-
-  useEffect(() => {
-    const root = panelRefs.current.hero?.parentElement
-    if (!root) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
-
-        if (visible?.target instanceof HTMLElement) {
-          setActivePanel(visible.target.id as PanelId)
-        }
-      },
-      { root, threshold: [0.55, 0.7] },
-    )
-
-    panelIds.forEach((id) => {
-      const node = panelRefs.current[id]
-      if (node) observer.observe(node)
-    })
-
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => () => {
-    if (scrollAnimationRef.current) {
-      window.cancelAnimationFrame(scrollAnimationRef.current)
-    }
-    transitionCleanupRef.current?.()
-  }, [])
 
   const categories = ['All', ...Array.from(new Set(articles.map((article) => article.category)))]
 
@@ -574,82 +539,7 @@ export default function App() {
   const article = activeArticle ? articles.find((item) => item.slug === activeArticle) : undefined
 
   const scrollToPanel = (id: PanelId) => {
-    const track = panelTrackRef.current
-    const node = panelRefs.current[id]
-    if (!track || !node) return
-
-    if (scrollAnimationRef.current) {
-      window.cancelAnimationFrame(scrollAnimationRef.current)
-      scrollAnimationRef.current = null
-    }
-    transitionCleanupRef.current?.()
-    transitionCleanupRef.current = null
-
     setActivePanel(id)
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const target = node.offsetLeft
-
-    if (reduceMotion) {
-      track.scrollLeft = target
-      return
-    }
-
-    const width = Math.max(track.clientWidth, 1)
-    const currentIndex = Math.max(0, Math.min(panelIds.length - 1, Math.round(track.scrollLeft / width)))
-    const targetIndex = panelIds.indexOf(id)
-    const currentNode = panelRefs.current[panelIds[currentIndex]]
-    const isDirectJump = Math.abs(targetIndex - currentIndex) > 1 && currentNode !== null
-    const start = currentIndex * width
-    const direction = Math.sign(targetIndex - currentIndex) || 1
-    const animatedTarget = isDirectJump ? start + direction * width : target
-    const distance = animatedTarget - start
-    if (Math.abs(distance) < 1) return
-
-    track.scrollLeft = start
-    track.classList.add('is-programmatic-scrolling')
-
-    if (isDirectJump) {
-      const targetShift = animatedTarget - target
-      node.style.transform = `translate3d(${targetShift}px, 0, 0)`
-      node.classList.add('is-direct-target')
-      panelIds.forEach((panelId) => {
-        const panel = panelRefs.current[panelId]
-        if (panel && panel !== currentNode && panel !== node) panel.classList.add('is-transition-hidden')
-      })
-    }
-
-    const finishTransition = () => {
-      track.scrollLeft = target
-      panelIds.forEach((panelId) => {
-        const panel = panelRefs.current[panelId]
-        if (!panel) return
-        panel.classList.remove('is-transition-hidden', 'is-direct-target')
-        panel.style.removeProperty('transform')
-      })
-      track.classList.remove('is-programmatic-scrolling')
-      transitionCleanupRef.current = null
-    }
-    transitionCleanupRef.current = finishTransition
-
-    const duration = isDirectJump ? 780 : 820
-    const startedAt = performance.now()
-    const fluidEase = (progress: number) => {
-      const smoothStep = progress * progress * (3 - 2 * progress)
-      return progress * 0.1 + smoothStep * 0.9
-    }
-
-    const animateScroll = (now: number) => {
-      const progress = Math.min(1, (now - startedAt) / duration)
-      track.scrollLeft = start + distance * fluidEase(progress)
-      if (progress < 1) {
-        scrollAnimationRef.current = window.requestAnimationFrame(animateScroll)
-      } else {
-        scrollAnimationRef.current = null
-        finishTransition()
-      }
-    }
-
-    scrollAnimationRef.current = window.requestAnimationFrame(animateScroll)
   }
 
   return (
@@ -680,16 +570,13 @@ export default function App() {
       </header>
 
       <main className="viewport">
-        <div
-          className="panel-track"
-          ref={panelTrackRef}
-        >
+        <div className="panel-track">
           <section
             id="hero"
             ref={(node) => {
               panelRefs.current.hero = node
             }}
-            className="panel hero-panel"
+            className={`panel hero-panel ${activePanel === 'hero' ? 'panel-active' : ''}`}
           >
             <div className="panel-inner hero-inner">
               <div className="hero-grid">
@@ -746,7 +633,7 @@ export default function App() {
             ref={(node) => {
               panelRefs.current.skills = node
             }}
-            className="panel"
+            className={`panel ${activePanel === 'skills' ? 'panel-active' : ''}`}
           >
             <div className="panel-inner">
               <div className="section-heading">
@@ -798,7 +685,7 @@ export default function App() {
             ref={(node) => {
               panelRefs.current.mcp = node
             }}
-            className="panel panel-tinted"
+            className={`panel panel-tinted ${activePanel === 'mcp' ? 'panel-active' : ''}`}
           >
             <div className="panel-inner">
               <div className="section-heading">
@@ -840,7 +727,7 @@ export default function App() {
             ref={(node) => {
               panelRefs.current.demos = node
             }}
-            className="panel demo-panel"
+            className={`panel demo-panel ${activePanel === 'demos' ? 'panel-active' : ''}`}
           >
             <div className="panel-inner demo-inner">
               <div className="section-heading demo-heading">
@@ -869,7 +756,7 @@ export default function App() {
             ref={(node) => {
               panelRefs.current.paper2hfss = node
             }}
-            className="panel"
+            className={`panel ${activePanel === 'paper2hfss' ? 'panel-active' : ''}`}
           >
             <div className="panel-inner">
               <div className="product-header">
@@ -912,7 +799,7 @@ export default function App() {
             ref={(node) => {
               panelRefs.current.docs = node
             }}
-            className="panel panel-tinted"
+            className={`panel panel-tinted ${activePanel === 'docs' ? 'panel-active' : ''}`}
           >
             <div className="panel-inner docs-inner">
               <div className="section-heading">
