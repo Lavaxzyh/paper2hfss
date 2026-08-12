@@ -49,7 +49,7 @@ h1 em, h2 em { color: var(--accent); font-style: normal; }
 
 /* Give editorial headings enough breathing room for clear English word shapes. */
 h1 { letter-spacing: -.035em; word-spacing: .04em; }
-h1 { word-spacing: .22em; }
+h1 { word-spacing: .44em; }
 .section-heading h2, .product-header h2, .article-detail h2 { letter-spacing: -.03em; word-spacing: .035em; }
 .skill-card h3, .mcp-card h3, .article-row h3 { letter-spacing: -.015em; word-spacing: .02em; }
 .article-body h3 { letter-spacing: -.01em; word-spacing: .015em; }
