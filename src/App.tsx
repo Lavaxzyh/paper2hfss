@@ -64,7 +64,7 @@ function arrayFactor(size: number, phase: number) {
 
 function ArrayPatternDemo() {
   const [parameters, setParameters] = useState<ArrayParameters>(defaultArrayParameters)
-  const [autoRotate, setAutoRotate] = useState(true)
+  const [autoRotate, setAutoRotate] = useState(false)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const updatePatternRef = useRef<(next: ArrayParameters) => void>(() => undefined)
   const controlsRef = useRef<OrbitControls | null>(null)
@@ -88,7 +88,7 @@ function ArrayPatternDemo() {
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.enableDamping = true
     controls.dampingFactor = 0.055
-    controls.autoRotate = true
+    controls.autoRotate = false
     controls.autoRotateSpeed = 0.42
     controls.minDistance = 1.45
     controls.maxDistance = 5.5
@@ -552,6 +552,12 @@ export default function App() {
     return () => observer.disconnect()
   }, [])
 
+  useEffect(() => () => {
+    if (scrollAnimationRef.current) {
+      window.cancelAnimationFrame(scrollAnimationRef.current)
+    }
+  }, [])
+
   const categories = ['All', ...Array.from(new Set(articles.map((article) => article.category)))]
 
   const filteredArticles = useMemo(() => {
@@ -579,6 +585,8 @@ export default function App() {
       scrollAnimationRef.current = null
     }
 
+    track.classList.remove('is-programmatic-scrolling')
+
     if (reduceMotion) {
       track.scrollLeft = target
       return
@@ -586,18 +594,26 @@ export default function App() {
 
     const start = track.scrollLeft
     const distance = target - start
-    const duration = 980
+    if (Math.abs(distance) < 1) return
+
+    const panelDistance = Math.abs(distance) / Math.max(track.clientWidth, 1)
+    const duration = Math.min(1250, 820 + Math.max(0, panelDistance - 1) * 130)
     const startedAt = performance.now()
-    const easeInOut = (progress: number) => progress < 0.5
-      ? 4 * progress * progress * progress
-      : 1 - Math.pow(-2 * progress + 2, 3) / 2
+    const fluidEase = (progress: number) => {
+      const smoothStep = progress * progress * (3 - 2 * progress)
+      return progress * 0.1 + smoothStep * 0.9
+    }
+
+    track.classList.add('is-programmatic-scrolling')
 
     const animateScroll = (now: number) => {
       const progress = Math.min(1, (now - startedAt) / duration)
-      track.scrollLeft = start + distance * easeInOut(progress)
+      track.scrollLeft = start + distance * fluidEase(progress)
       if (progress < 1) {
         scrollAnimationRef.current = window.requestAnimationFrame(animateScroll)
       } else {
+        track.scrollLeft = target
+        track.classList.remove('is-programmatic-scrolling')
         scrollAnimationRef.current = null
       }
     }

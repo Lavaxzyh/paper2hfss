@@ -161,9 +161,13 @@ p {
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
+}
+
+.panel-track.is-programmatic-scrolling {
+  scroll-snap-type: none;
 }
 
 .panel-track::-webkit-scrollbar {
