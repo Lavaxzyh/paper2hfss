@@ -57,6 +57,9 @@ const defaultArrayParameters: ArrayParameters = {
   phi: 45,
 }
 
+const defaultCameraPosition = { x: 2.35, y: 1.35, z: -2.35 }
+const defaultCameraTarget = { x: 0, y: 0.42, z: 0 }
+
 function arrayFactor(size: number, phase: number) {
   if (Math.abs(phase) < 1e-6) return 1
   return Math.sin(size * phase / 2) / (size * Math.sin(phase / 2))
@@ -67,6 +70,7 @@ function ArrayPatternDemo() {
   const [autoRotate, setAutoRotate] = useState(false)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const updatePatternRef = useRef<(next: ArrayParameters) => void>(() => undefined)
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const controlsRef = useRef<OrbitControls | null>(null)
 
   useEffect(() => {
@@ -78,7 +82,8 @@ function ArrayPatternDemo() {
     scene.fog = new THREE.Fog('#06131f', 3.2, 6.2)
 
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
-    camera.position.set(2.35, 1.35, -2.35)
+    camera.position.set(defaultCameraPosition.x, defaultCameraPosition.y, defaultCameraPosition.z)
+    cameraRef.current = camera
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
@@ -92,7 +97,7 @@ function ArrayPatternDemo() {
     controls.autoRotateSpeed = 0.42
     controls.minDistance = 1.45
     controls.maxDistance = 5.5
-    controls.target.set(0, 0.42, 0)
+    controls.target.set(defaultCameraTarget.x, defaultCameraTarget.y, defaultCameraTarget.z)
     controlsRef.current = controls
 
     scene.add(new THREE.HemisphereLight(0xbdeee6, 0x06131f, 1.35))
@@ -228,6 +233,7 @@ function ArrayPatternDemo() {
       window.cancelAnimationFrame(frame)
       resizeObserver.disconnect()
       controls.dispose()
+      cameraRef.current = null
       controlsRef.current = null
       geometry.dispose()
       material.dispose()
@@ -245,6 +251,17 @@ function ArrayPatternDemo() {
   useEffect(() => {
     if (controlsRef.current) controlsRef.current.autoRotate = autoRotate
   }, [autoRotate])
+
+  const resetDemo = () => {
+    setParameters(defaultArrayParameters)
+    const camera = cameraRef.current
+    const controls = controlsRef.current
+    if (!camera || !controls) return
+
+    camera.position.set(defaultCameraPosition.x, defaultCameraPosition.y, defaultCameraPosition.z)
+    controls.target.set(defaultCameraTarget.x, defaultCameraTarget.y, defaultCameraTarget.z)
+    controls.update()
+  }
 
   const controls: Array<{ key: keyof ArrayParameters; label: string; unit: string; min: number; max: number; step: number }> = [
     { key: 'nx', label: 'Elements / X', unit: '', min: 1, max: 20, step: 1 },
@@ -270,7 +287,7 @@ function ArrayPatternDemo() {
               <span className="toggle-dot" />
               AUTO ROTATE {autoRotate ? 'ON' : 'OFF'}
             </button>
-            <button type="button" onClick={() => setParameters(defaultArrayParameters)}>Reset</button>
+            <button type="button" onClick={resetDemo}>Reset</button>
           </div>
         </div>
         {controls.map((control) => (
