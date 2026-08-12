@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 type Article = {
   slug: string
@@ -62,110 +64,178 @@ function arrayFactor(size: number, phase: number) {
 
 function ArrayPatternDemo() {
   const [parameters, setParameters] = useState<ArrayParameters>(defaultArrayParameters)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const stageRef = useRef<HTMLDivElement | null>(null)
+  const updatePatternRef = useRef<(next: ArrayParameters) => void>(() => undefined)
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    const stage = stageRef.current
+    if (!stage) return
 
-    const context = canvas.getContext('2d')
-    if (!context) return
+    const scene = new THREE.Scene()
+    scene.background = new THREE.Color('#06131f')
+    scene.fog = new THREE.Fog('#06131f', 3.2, 6.2)
 
-    const draw = () => {
-      const bounds = canvas.getBoundingClientRect()
-      const ratio = Math.min(window.devicePixelRatio || 1, 2)
-      canvas.width = Math.max(1, Math.floor(bounds.width * ratio))
-      canvas.height = Math.max(1, Math.floor(bounds.height * ratio))
-      context.setTransform(ratio, 0, 0, ratio, 0, 0)
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
+    camera.position.set(2.15, 1.65, 2.15)
 
-      const width = bounds.width
-      const height = bounds.height
-      const centerX = width * 0.5
-      const centerY = height * 0.53
-      const radius = Math.min(width, height) * 0.39
-      const theta0 = parameters.theta * Math.PI / 180
-      const phi0 = parameters.phi * Math.PI / 180
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    stage.appendChild(renderer.domElement)
 
-      context.clearRect(0, 0, width, height)
-      context.fillStyle = '#06131f'
-      context.fillRect(0, 0, width, height)
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true
+    controls.dampingFactor = 0.055
+    controls.autoRotate = true
+    controls.autoRotateSpeed = 0.42
+    controls.minDistance = 1.45
+    controls.maxDistance = 5.5
+    controls.target.set(0, 0.42, 0)
 
-      context.strokeStyle = 'rgba(101, 231, 209, .12)'
-      context.lineWidth = 1
-      ;[0.25, 0.5, 0.75, 1].forEach((scale) => {
-        context.beginPath()
-        context.arc(centerX, centerY, radius * scale, 0, Math.PI * 2)
-        context.stroke()
-      })
-      for (let degree = 0; degree < 360; degree += 30) {
-        const angle = degree * Math.PI / 180
-        context.beginPath()
-        context.moveTo(centerX, centerY)
-        context.lineTo(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius)
-        context.stroke()
+    scene.add(new THREE.HemisphereLight(0xbdeee6, 0x06131f, 1.35))
+    const keyLight = new THREE.DirectionalLight(0xe9fff9, 2.4)
+    scene.add(keyLight)
+    const rimLight = new THREE.PointLight(0x65e7d1, 7, 5)
+    rimLight.position.set(-1.7, 1.4, -1.2)
+    scene.add(rimLight)
+
+    const polarGrid = new THREE.PolarGridHelper(1.18, 12, 4, 64, 0x39727a, 0x163b49)
+    polarGrid.position.y = -0.015
+    scene.add(polarGrid)
+
+    const origin = new THREE.Vector3(0, 0, 0)
+    scene.add(new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), origin, 1.35, 0x65e7d1, 0.08, 0.045))
+    scene.add(new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), origin, 1.35, 0xe4c79a, 0.08, 0.045))
+    scene.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), origin, 1.35, 0x8ea7aa, 0.08, 0.045))
+
+    const thetaSteps = 200
+    const phiSteps = 200
+    const vertexCount = (thetaSteps + 1) * (phiSteps + 1)
+    const positions = new Float32Array(vertexCount * 3)
+    const colors = new Float32Array(vertexCount * 3)
+    const indices: number[] = []
+
+    for (let thetaIndex = 0; thetaIndex < thetaSteps; thetaIndex += 1) {
+      for (let phiIndex = 0; phiIndex < phiSteps; phiIndex += 1) {
+        const a = thetaIndex * (phiSteps + 1) + phiIndex
+        const b = a + phiSteps + 1
+        indices.push(a, b, b + 1, a, b + 1, a + 1)
       }
-
-      const image = context.createImageData(Math.ceil(radius * 2), Math.ceil(radius * 2))
-      const size = Math.ceil(radius * 2)
-      for (let y = 0; y < size; y += 1) {
-        for (let x = 0; x < size; x += 1) {
-          const u = (x - radius) / radius
-          const v = (y - radius) / radius
-          const distance = Math.hypot(u, v)
-          if (distance > 1) continue
-
-          const theta = distance * Math.PI / 2
-          const phi = Math.atan2(v, u)
-          const psiX = 2 * Math.PI * parameters.dx * (
-            Math.sin(theta) * Math.cos(phi) - Math.sin(theta0) * Math.cos(phi0)
-          )
-          const psiY = 2 * Math.PI * parameters.dy * (
-            Math.sin(theta) * Math.sin(phi) - Math.sin(theta0) * Math.sin(phi0)
-          )
-          const magnitude = Math.abs(arrayFactor(parameters.nx, psiX) * arrayFactor(parameters.ny, psiY))
-          const normalized = Math.pow(Math.min(1, magnitude), 0.42)
-          const index = (y * size + x) * 4
-          image.data[index] = Math.round(15 + 65 * normalized)
-          image.data[index + 1] = Math.round(34 + 190 * normalized)
-          image.data[index + 2] = Math.round(50 + 175 * normalized)
-          image.data[index + 3] = Math.round(235 * normalized)
-        }
-      }
-      context.putImageData(image, Math.round(centerX - radius), Math.round(centerY - radius))
-
-      context.strokeStyle = 'rgba(101, 231, 209, .72)'
-      context.lineWidth = 1.4
-      context.beginPath()
-      context.arc(centerX, centerY, radius, 0, Math.PI * 2)
-      context.stroke()
-
-      const mainBeamRadius = radius * (theta0 / (Math.PI / 2))
-      const beamX = centerX + Math.cos(phi0) * mainBeamRadius
-      const beamY = centerY + Math.sin(phi0) * mainBeamRadius
-      context.fillStyle = '#e4c79a'
-      context.beginPath()
-      context.arc(beamX, beamY, 4, 0, Math.PI * 2)
-      context.fill()
-      context.strokeStyle = 'rgba(228, 199, 154, .7)'
-      context.setLineDash([4, 5])
-      context.beginPath()
-      context.moveTo(centerX, centerY)
-      context.lineTo(beamX, beamY)
-      context.stroke()
-      context.setLineDash([])
-
-      context.fillStyle = 'rgba(185, 204, 204, .76)'
-      context.font = "10px 'DM Mono', monospace"
-      context.fillText('BROADSIDE', centerX - 26, centerY - radius - 16)
-      context.fillText('0°', centerX - 8, centerY + 16)
-      context.fillStyle = '#65e7d1'
-      context.fillText('ARRAY FACTOR · UPPER HEMISPHERE', 18, height - 20)
     }
 
-    draw()
-    const observer = new ResizeObserver(draw)
-    observer.observe(canvas)
-    return () => observer.disconnect()
+    const geometry = new THREE.BufferGeometry()
+    geometry.setIndex(indices)
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+
+    const material = new THREE.MeshPhongMaterial({
+      vertexColors: true,
+      side: THREE.DoubleSide,
+      shininess: 95,
+      specular: new THREE.Color('#b9cccc'),
+    })
+    const patternMesh = new THREE.Mesh(geometry, material)
+    patternMesh.scale.setScalar(1.12)
+    scene.add(patternMesh)
+
+    const wireMaterial = new THREE.MeshBasicMaterial({
+      color: '#b9cccc',
+      wireframe: true,
+      transparent: true,
+      opacity: 0.055,
+    })
+    const wireMesh = new THREE.Mesh(geometry, wireMaterial)
+    wireMesh.scale.copy(patternMesh.scale)
+    scene.add(wireMesh)
+
+    const deepColor = new THREE.Color('#123c55')
+    const midColor = new THREE.Color('#38a99f')
+    const peakColor = new THREE.Color('#e4c79a')
+    const sampleColor = new THREE.Color()
+
+    const updatePattern = (next: ArrayParameters) => {
+      const theta0 = THREE.MathUtils.degToRad(next.theta)
+      const phi0 = THREE.MathUtils.degToRad(next.phi)
+      const positionAttribute = geometry.getAttribute('position') as THREE.BufferAttribute
+      const colorAttribute = geometry.getAttribute('color') as THREE.BufferAttribute
+      let vertex = 0
+
+      for (let thetaIndex = 0; thetaIndex <= thetaSteps; thetaIndex += 1) {
+        const theta = thetaIndex / thetaSteps * Math.PI / 2
+        const sinTheta = Math.sin(theta)
+        const cosTheta = Math.cos(theta)
+
+        for (let phiIndex = 0; phiIndex <= phiSteps; phiIndex += 1) {
+          const phi = phiIndex / phiSteps * Math.PI * 2
+          const psiX = 2 * Math.PI * next.dx * (
+            sinTheta * Math.cos(phi) - Math.sin(theta0) * Math.cos(phi0)
+          )
+          const psiY = 2 * Math.PI * next.dy * (
+            sinTheta * Math.sin(phi) - Math.sin(theta0) * Math.sin(phi0)
+          )
+          const magnitude = Math.abs(arrayFactor(next.nx, psiX) * arrayFactor(next.ny, psiY))
+
+          positionAttribute.setXYZ(
+            vertex,
+            magnitude * sinTheta * Math.cos(phi),
+            magnitude * cosTheta,
+            magnitude * sinTheta * Math.sin(phi),
+          )
+
+          if (magnitude < 0.55) {
+            sampleColor.lerpColors(deepColor, midColor, magnitude / 0.55)
+          } else {
+            sampleColor.lerpColors(midColor, peakColor, (magnitude - 0.55) / 0.45)
+          }
+          colorAttribute.setXYZ(vertex, sampleColor.r, sampleColor.g, sampleColor.b)
+          vertex += 1
+        }
+      }
+
+      positionAttribute.needsUpdate = true
+      colorAttribute.needsUpdate = true
+      geometry.computeVertexNormals()
+      geometry.computeBoundingSphere()
+    }
+
+    updatePatternRef.current = updatePattern
+    updatePattern(defaultArrayParameters)
+
+    const resize = () => {
+      const width = Math.max(1, stage.clientWidth)
+      const height = Math.max(1, stage.clientHeight)
+      camera.aspect = width / height
+      camera.updateProjectionMatrix()
+      renderer.setSize(width, height, false)
+    }
+    resize()
+    const resizeObserver = new ResizeObserver(resize)
+    resizeObserver.observe(stage)
+
+    let frame = 0
+    const animate = () => {
+      frame = window.requestAnimationFrame(animate)
+      controls.update()
+      keyLight.position.copy(camera.position)
+      renderer.render(scene, camera)
+    }
+    animate()
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      resizeObserver.disconnect()
+      controls.dispose()
+      geometry.dispose()
+      material.dispose()
+      wireMaterial.dispose()
+      renderer.dispose()
+      renderer.domElement.remove()
+      updatePatternRef.current = () => undefined
+    }
+  }, [])
+
+  useEffect(() => {
+    updatePatternRef.current(parameters)
   }, [parameters])
 
   const controls: Array<{ key: keyof ArrayParameters; label: string; unit: string; min: number; max: number; step: number }> = [
@@ -197,14 +267,20 @@ function ArrayPatternDemo() {
             />
           </label>
         ))}
-        <p className="demo-hint">调整阵元数量、间距与扫描方向，实时观察归一化阵因子。此演示用于直观理解，不替代全波仿真。</p>
+        <p className="demo-hint">调整阵元数量、间距与扫描方向，实时观察三维归一化阵因子。拖动波束查看空间形态；此演示用于直观理解，不替代全波仿真。</p>
       </div>
       <div className="array-canvas-wrap">
-        <canvas ref={canvasRef} aria-label="Interactive planar array factor visualization" />
+        <div
+          ref={stageRef}
+          className="array-three-stage"
+          aria-label="Interactive three-dimensional planar array radiation pattern"
+          role="img"
+        />
         <div className="demo-readout">
           <span>NX × NY</span><strong>{parameters.nx} × {parameters.ny}</strong>
           <span>SCAN</span><strong>θ {parameters.theta}° / φ {parameters.phi}°</strong>
         </div>
+        <span className="demo-gesture">DRAG · ROTATE / WHEEL · ZOOM</span>
       </div>
     </div>
   )
