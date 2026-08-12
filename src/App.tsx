@@ -64,8 +64,10 @@ function arrayFactor(size: number, phase: number) {
 
 function ArrayPatternDemo() {
   const [parameters, setParameters] = useState<ArrayParameters>(defaultArrayParameters)
+  const [autoRotate, setAutoRotate] = useState(true)
   const stageRef = useRef<HTMLDivElement | null>(null)
   const updatePatternRef = useRef<(next: ArrayParameters) => void>(() => undefined)
+  const controlsRef = useRef<OrbitControls | null>(null)
 
   useEffect(() => {
     const stage = stageRef.current
@@ -91,6 +93,7 @@ function ArrayPatternDemo() {
     controls.minDistance = 1.45
     controls.maxDistance = 5.5
     controls.target.set(0, 0.42, 0)
+    controlsRef.current = controls
 
     scene.add(new THREE.HemisphereLight(0xbdeee6, 0x06131f, 1.35))
     const keyLight = new THREE.DirectionalLight(0xe9fff9, 2.4)
@@ -225,6 +228,7 @@ function ArrayPatternDemo() {
       window.cancelAnimationFrame(frame)
       resizeObserver.disconnect()
       controls.dispose()
+      controlsRef.current = null
       geometry.dispose()
       material.dispose()
       wireMaterial.dispose()
@@ -237,6 +241,10 @@ function ArrayPatternDemo() {
   useEffect(() => {
     updatePatternRef.current(parameters)
   }, [parameters])
+
+  useEffect(() => {
+    if (controlsRef.current) controlsRef.current.autoRotate = autoRotate
+  }, [autoRotate])
 
   const controls: Array<{ key: keyof ArrayParameters; label: string; unit: string; min: number; max: number; step: number }> = [
     { key: 'nx', label: 'Elements / X', unit: '', min: 1, max: 20, step: 1 },
@@ -252,7 +260,18 @@ function ArrayPatternDemo() {
       <div className="demo-controls" aria-label="Planar array parameters">
         <div className="demo-control-header">
           <span className="status-pill">LIVE DEMO</span>
-          <button type="button" onClick={() => setParameters(defaultArrayParameters)}>Reset</button>
+          <div className="demo-control-actions">
+            <button
+              type="button"
+              className={`rotate-toggle ${autoRotate ? 'enabled' : ''}`}
+              aria-pressed={autoRotate}
+              onClick={() => setAutoRotate((current) => !current)}
+            >
+              <span className="toggle-dot" />
+              AUTO ROTATE {autoRotate ? 'ON' : 'OFF'}
+            </button>
+            <button type="button" onClick={() => setParameters(defaultArrayParameters)}>Reset</button>
+          </div>
         </div>
         {controls.map((control) => (
           <label className="range-control" key={control.key}>
@@ -477,6 +496,8 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
   const [activePanel, setActivePanel] = useState<PanelId>('hero')
+  const panelTrackRef = useRef<HTMLDivElement | null>(null)
+  const scrollAnimationRef = useRef<number | null>(null)
   const panelRefs = useRef<Record<PanelId, HTMLElement | null>>({
     hero: null,
     skills: null,
@@ -546,15 +567,42 @@ export default function App() {
 
   const scrollToPanel = (id: PanelId) => {
     setActivePanel(id)
+    const track = panelTrackRef.current
     const node = panelRefs.current[id]
-    if (!node) return
+    if (!track || !node) return
 
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    node.scrollIntoView({
-      behavior: reduceMotion ? 'auto' : 'smooth',
-      block: 'nearest',
-      inline: 'start',
-    })
+    const target = node.offsetLeft
+
+    if (scrollAnimationRef.current) {
+      window.cancelAnimationFrame(scrollAnimationRef.current)
+      scrollAnimationRef.current = null
+    }
+
+    if (reduceMotion) {
+      track.scrollLeft = target
+      return
+    }
+
+    const start = track.scrollLeft
+    const distance = target - start
+    const duration = 980
+    const startedAt = performance.now()
+    const easeInOut = (progress: number) => progress < 0.5
+      ? 4 * progress * progress * progress
+      : 1 - Math.pow(-2 * progress + 2, 3) / 2
+
+    const animateScroll = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration)
+      track.scrollLeft = start + distance * easeInOut(progress)
+      if (progress < 1) {
+        scrollAnimationRef.current = window.requestAnimationFrame(animateScroll)
+      } else {
+        scrollAnimationRef.current = null
+      }
+    }
+
+    scrollAnimationRef.current = window.requestAnimationFrame(animateScroll)
   }
 
   return (
@@ -585,7 +633,10 @@ export default function App() {
       </header>
 
       <main className="viewport">
-        <div className="panel-track">
+        <div
+          className="panel-track"
+          ref={panelTrackRef}
+        >
           <section
             id="hero"
             ref={(node) => {

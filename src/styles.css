@@ -592,6 +592,12 @@ h2 em {
   margin-bottom: 24px;
 }
 
+.demo-control-actions {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
 .demo-control-header button {
   color: var(--muted);
   font: 10px 'DM Mono', monospace;
@@ -601,6 +607,32 @@ h2 em {
 
 .demo-control-header button:hover {
   color: var(--accent);
+}
+
+.rotate-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font: 9px 'DM Mono', monospace;
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+
+.rotate-toggle.enabled {
+  color: var(--accent);
+}
+
+.toggle-dot {
+  width: 6px;
+  height: 6px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.rotate-toggle.enabled .toggle-dot {
+  background: currentColor;
+  box-shadow: 0 0 9px currentColor;
 }
 
 .range-control {
