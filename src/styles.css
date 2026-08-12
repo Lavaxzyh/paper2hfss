@@ -170,6 +170,16 @@ p {
   scroll-snap-type: none;
 }
 
+.panel.is-transition-hidden {
+  visibility: hidden;
+}
+
+.panel.is-direct-target {
+  position: relative;
+  z-index: 1;
+  will-change: transform;
+}
+
 .panel-track::-webkit-scrollbar {
   display: none;
 }

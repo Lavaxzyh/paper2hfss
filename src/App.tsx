@@ -78,7 +78,7 @@ function ArrayPatternDemo() {
     scene.fog = new THREE.Fog('#06131f', 3.2, 6.2)
 
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
-    camera.position.set(2.15, 1.65, 2.15)
+    camera.position.set(2.35, 1.35, -2.35)
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
@@ -498,6 +498,7 @@ export default function App() {
   const [activePanel, setActivePanel] = useState<PanelId>('hero')
   const panelTrackRef = useRef<HTMLDivElement | null>(null)
   const scrollAnimationRef = useRef<number | null>(null)
+  const transitionCleanupRef = useRef<(() => void) | null>(null)
   const panelRefs = useRef<Record<PanelId, HTMLElement | null>>({
     hero: null,
     skills: null,
@@ -556,6 +557,7 @@ export default function App() {
     if (scrollAnimationRef.current) {
       window.cancelAnimationFrame(scrollAnimationRef.current)
     }
+    transitionCleanupRef.current?.()
   }, [])
 
   const categories = ['All', ...Array.from(new Set(articles.map((article) => article.category)))]
@@ -572,39 +574,69 @@ export default function App() {
   const article = activeArticle ? articles.find((item) => item.slug === activeArticle) : undefined
 
   const scrollToPanel = (id: PanelId) => {
-    setActivePanel(id)
     const track = panelTrackRef.current
     const node = panelRefs.current[id]
     if (!track || !node) return
-
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const target = node.offsetLeft
 
     if (scrollAnimationRef.current) {
       window.cancelAnimationFrame(scrollAnimationRef.current)
       scrollAnimationRef.current = null
     }
+    transitionCleanupRef.current?.()
+    transitionCleanupRef.current = null
 
-    track.classList.remove('is-programmatic-scrolling')
+    setActivePanel(id)
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const target = node.offsetLeft
 
     if (reduceMotion) {
       track.scrollLeft = target
       return
     }
 
-    const start = track.scrollLeft
-    const distance = target - start
+    const width = Math.max(track.clientWidth, 1)
+    const currentIndex = Math.max(0, Math.min(panelIds.length - 1, Math.round(track.scrollLeft / width)))
+    const targetIndex = panelIds.indexOf(id)
+    const currentNode = panelRefs.current[panelIds[currentIndex]]
+    const isDirectJump = Math.abs(targetIndex - currentIndex) > 1 && currentNode !== null
+    const start = currentIndex * width
+    const direction = Math.sign(targetIndex - currentIndex) || 1
+    const animatedTarget = isDirectJump ? start + direction * width : target
+    const distance = animatedTarget - start
     if (Math.abs(distance) < 1) return
 
-    const panelDistance = Math.abs(distance) / Math.max(track.clientWidth, 1)
-    const duration = Math.min(1250, 820 + Math.max(0, panelDistance - 1) * 130)
+    track.scrollLeft = start
+    track.classList.add('is-programmatic-scrolling')
+
+    if (isDirectJump) {
+      const targetShift = animatedTarget - target
+      node.style.transform = `translate3d(${targetShift}px, 0, 0)`
+      node.classList.add('is-direct-target')
+      panelIds.forEach((panelId) => {
+        const panel = panelRefs.current[panelId]
+        if (panel && panel !== currentNode && panel !== node) panel.classList.add('is-transition-hidden')
+      })
+    }
+
+    const finishTransition = () => {
+      track.scrollLeft = target
+      panelIds.forEach((panelId) => {
+        const panel = panelRefs.current[panelId]
+        if (!panel) return
+        panel.classList.remove('is-transition-hidden', 'is-direct-target')
+        panel.style.removeProperty('transform')
+      })
+      track.classList.remove('is-programmatic-scrolling')
+      transitionCleanupRef.current = null
+    }
+    transitionCleanupRef.current = finishTransition
+
+    const duration = isDirectJump ? 780 : 820
     const startedAt = performance.now()
     const fluidEase = (progress: number) => {
       const smoothStep = progress * progress * (3 - 2 * progress)
       return progress * 0.1 + smoothStep * 0.9
     }
-
-    track.classList.add('is-programmatic-scrolling')
 
     const animateScroll = (now: number) => {
       const progress = Math.min(1, (now - startedAt) / duration)
@@ -612,9 +644,8 @@ export default function App() {
       if (progress < 1) {
         scrollAnimationRef.current = window.requestAnimationFrame(animateScroll)
       } else {
-        track.scrollLeft = target
-        track.classList.remove('is-programmatic-scrolling')
         scrollAnimationRef.current = null
+        finishTransition()
       }
     }
 
